@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: satelite-delivery-config
+  namespace: default
+data:
+  APP_NAME: "Satelite Delivery"
+  APP_ENV: "local"
+  APP_DEBUG: "true"
+  APP_TIMEZONE: "America/La_Paz"
+  APP_URL: "http://localhost"
+  APP_LOCALE: "es"
+  APP_FALLBACK_LOCALE: "es"
+  APP_FAKER_LOCALE: "es_BO"
+  DB_CONNECTION: "pgsql"
+  DB_HOST: "db-service"
+  DB_PORT: "5432"
+  DB_DATABASE: "satelite_delivery"
+  DB_SCHEMA: "public"
+  SESSION_DRIVER: "database"
+  SESSION_LIFETIME: "120"
+  BROADCAST_CONNECTION: "log"
+  FILESYSTEM_DISK: "local"
+  QUEUE_CONNECTION: "database"
+  CACHE_STORE: "array"

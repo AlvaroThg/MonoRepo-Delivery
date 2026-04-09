@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Frontend Web Service
+  frontend-service:
+    build:
+      context: ./Satelite-Delivery-App
+      dockerfile: Dockerfile
+    image: satelite-delivery-frontend:v1.0
+    container_name: satelite-delivery-frontend
+    ports:
+      - "80:80"
+    networks:
+      - satelite-network
+    depends_on:
+      - backend-nginx-service
+    restart: unless-stopped
+
+  # Backend PHP-FPM Service
+  backend-php-service:
+    build:
+      context: ./Satelite-Delivery
+      dockerfile: Dockerfile
+    image: satelite-delivery-backend-php:v1.2
+    container_name: satelite-delivery-backend-php
+    environment:
+      APP_NAME: "Satelite Delivery"
+      APP_ENV: local
+      APP_KEY: base64:rSg9vgrGDy0JJC4oA2gwu5jDc5NVVWu0pb9z7XuHxLA=
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8080
+      APP_TIMEZONE: America/La_Paz
+      DB_CONNECTION: pgsql
+      DB_HOST: db-service
+      DB_PORT: 5432
+      DB_DATABASE: satelite_delivery
+      DB_USERNAME: postgres
+      DB_PASSWORD: secret
+      DB_SCHEMA: public
+    volumes:
+      - ./Satelite-Delivery:/var/www/html
+    networks:
+      - satelite-network
+    depends_on:
+      - db-service
+    restart: unless-stopped
+
+  # Backend Nginx Reverse Proxy Service
+  backend-nginx-service:
+    build:
+      context: ./Satelite-Delivery
+      dockerfile: Dockerfile.nginx
+    image: satelite-delivery-backend-nginx:v1.0
+    container_name: satelite-delivery-backend-nginx
+    ports:
+      - "8080:80"
+    networks:
+      - satelite-network
+    depends_on:
+      - backend-php-service
+    restart: unless-stopped
+
+  # PostgreSQL Database Service
+  db-service:
+    image: postgres:16-alpine
+    container_name: satelite-delivery-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: satelite_delivery
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - satelite-network
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+
+networks:
+  satelite-network:
+    driver: bridge
