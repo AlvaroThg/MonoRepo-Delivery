@@ -29,6 +29,10 @@ jobs:
         working-directory: Satelite-Delivery-App
         run: npm run test
 
+      - name: Create .env file
+        working-directory: Satelite-Delivery-App
+        run: cp .env.example .env
+
       - name: Build Web App
         working-directory: Satelite-Delivery-App
         run: npx expo export -p web
