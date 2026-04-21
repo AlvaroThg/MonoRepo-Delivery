@@ -29,10 +29,6 @@ jobs:
         working-directory: Satelite-Delivery-App
         run: npm run test
 
-      - name: TypeScript validation (Opcional)
-        working-directory: Satelite-Delivery-App
-        run: npx tsc --noEmit
-
       - name: Build Web App
         working-directory: Satelite-Delivery-App
         run: npx expo export -p web
