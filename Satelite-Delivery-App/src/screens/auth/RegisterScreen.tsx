@@ -1,8 +1,3 @@
-/**
- * @file RegisterScreen.tsx
- * Pantalla de registro — AuthStack.
- */
-
 import React, { useState } from 'react';
 import {
   View,
@@ -23,22 +18,29 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation }: Props) {
   const { register } = useAuth();
-  const [name, setName]         = useState('');
-  const [phone, setPhone]       = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async () => {
-    if (!name.trim() || !phone.trim() || !password.trim()) {
+    if (!name.trim() || !email.trim() || !phone.trim() || !password.trim()) {
       setError('Completa todos los campos.');
       return;
     }
+
     setLoading(true);
     setError(null);
+
     try {
-      await register({ name: name.trim(), phone, password });
-      // RootNavigator cambia automáticamente al AppStack
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password,
+      });
     } catch (err: any) {
       setError(err?.message ?? 'Error al crear la cuenta.');
     } finally {
@@ -56,24 +58,36 @@ export default function RegisterScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.logo}>🛰</Text>
+        <Text style={styles.logo}>Sat</Text>
         <Text style={styles.brand}>Crear Cuenta</Text>
-        <Text style={styles.tagline}>Únete a la red de entregas.</Text>
+        <Text style={styles.tagline}>Unete a la red de entregas.</Text>
 
         <View style={styles.form}>
           <Text style={styles.label}>Nombre completo</Text>
           <TextInput
             style={styles.input}
-            placeholder="Juan Pérez"
+            placeholder="Juan Perez"
             placeholderTextColor="#555B6E"
             value={name}
             onChangeText={setName}
           />
 
-          <Text style={styles.label}>Teléfono</Text>
+          <Text style={styles.label}>Correo electronico</Text>
           <TextInput
             style={styles.input}
-            placeholder="+58 412 000 0000"
+            placeholder="tu-correo@ejemplo.com"
+            placeholderTextColor="#555B6E"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <Text style={styles.label}>Telefono</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="73333333"
             placeholderTextColor="#555B6E"
             keyboardType="phone-pad"
             value={phone}
@@ -81,10 +95,10 @@ export default function RegisterScreen({ navigation }: Props) {
             autoCapitalize="none"
           />
 
-          <Text style={styles.label}>Contraseña</Text>
+          <Text style={styles.label}>Contrasena</Text>
           <TextInput
             style={styles.input}
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Minimo 8 caracteres"
             placeholderTextColor="#555B6E"
             secureTextEntry
             value={password}
@@ -99,10 +113,11 @@ export default function RegisterScreen({ navigation }: Props) {
             disabled={loading}
             activeOpacity={0.85}
           >
-            {loading
-              ? <ActivityIndicator color="#FFF" size="small" />
-              : <Text style={styles.btnText}>Crear Cuenta</Text>
-            }
+            {loading ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Text style={styles.btnText}>Crear Cuenta</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -111,7 +126,7 @@ export default function RegisterScreen({ navigation }: Props) {
           >
             <Text style={styles.linkText}>
               ¿Ya tienes cuenta?{' '}
-              <Text style={styles.linkBold}>Iniciar Sesión</Text>
+              <Text style={styles.linkBold}>Iniciar Sesion</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -132,9 +147,11 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   logo: {
-    fontSize: 52,
+    fontSize: 40,
     textAlign: 'center',
     marginBottom: 8,
+    color: '#93C5FD',
+    fontWeight: '900',
   },
   brand: {
     fontSize: 26,

@@ -1,151 +1,137 @@
-/**
- * @file src/services/orderService.js
- *
- * Servicio de pedidos — endpoints de Satélite Delivery.
- *
- * Métodos:
- *  - getStores()                   → Store[]
- *  - getStoreProducts(storeId)     → Product[]
- *  - getZones()                    → Zone[]
- *  - createOrder(payload)          → OrderResult
- *  - getOrder(orderId)             → OrderResult
- *  - getMyOrders()                 → OrderResult[]
- *
- * Todos los métodos lanzan un AppError en caso de fallo (ver errorHandler.js).
- */
-
 import client from '../api/client';
 
-// ─── JSDoc Types (espejo del DER) ─────────────────────────────────────────────
+function unwrapData(payload) {
+  return payload?.data ?? payload;
+}
 
-/**
- * @typedef {Object} Store
- * @property {number}  id
- * @property {string}  nombre
- * @property {string}  descripcion
- * @property {number}  lat
- * @property {number}  lng
- * @property {boolean} is_active
- */
+function mapUser(payload) {
+  if (!payload) {
+    return null;
+  }
 
-/**
- * @typedef {Object} Product
- * @property {number}  id
- * @property {number}  tienda_id
- * @property {string}  nombre
- * @property {number}  precio
- * @property {boolean} estado_stock
- */
+  const user = unwrapData(payload);
 
-/**
- * @typedef {Object} Zone
- * @property {number} id
- * @property {string} nombre
- * @property {number} costo_envio
- */
+  return {
+    id: String(user.id),
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+  };
+}
 
-/**
- * @typedef {Object} CreateOrderPayload
- * @property {number}   zona_id
- * @property {string}   referencia_entrega
- * @property {Array<{ producto_id: number, cantidad: number, precio_en_compra: number }>} items
- */
+function mapStore(payload) {
+  const store = unwrapData(payload);
+  const ownerName = store.owner?.name;
 
-/**
- * @typedef {Object} OrderResult
- * @property {number}  id
- * @property {number}  cliente_id
- * @property {number}  repartidor_id
- * @property {number}  estado_id
- * @property {number}  zona_id
- * @property {string}  referencia_entrega
- * @property {number}  total_precio
- * @property {number}  costo_envio
- * @property {string}  enlace_whatsapp
- * @property {number}  lat
- * @property {number}  lng
- * @property {Array}   items
- */
+  return {
+    id: Number(store.id),
+    nombre: store.name,
+    descripcion: ownerName
+      ? `Atendido por ${ownerName}. Pedido rapido en tu zona.`
+      : 'Disponible para entrega en Satelite Norte.',
+    lat: Number(store.lat),
+    lng: Number(store.lng),
+    is_active: store.is_active ?? true,
+    imagen_url: store.image_url ?? null,
+    owner_name: ownerName,
+  };
+}
 
-// ─── Servicio ─────────────────────────────────────────────────────────────────
+function mapProduct(payload) {
+  const product = unwrapData(payload);
+
+  return {
+    id: Number(product.id),
+    tienda_id: Number(product.store_id),
+    nombre: product.name,
+    descripcion: product.description ?? 'Producto disponible para entrega.',
+    precio: Number(product.price),
+    imagen_url: product.image_url ?? null,
+    estado_stock: product.in_stock ?? true,
+  };
+}
+
+function mapZone(payload) {
+  const zone = unwrapData(payload);
+
+  return {
+    id: Number(zone.id),
+    nombre: zone.name,
+    lat: Number(zone.lat),
+    lng: Number(zone.lng),
+    costo_envio: 0,
+  };
+}
+
+function mapOrder(payload) {
+  const order = unwrapData(payload);
+
+  return {
+    id: Number(order.id),
+    estado: order.status,
+    subtotal: Number(order.subtotal),
+    costo_envio: Number(order.delivery_fee),
+    total_precio: Number(order.total),
+    lat: Number(order.lat),
+    lng: Number(order.lng),
+    referencia_entrega: order.reference_text,
+    cliente: mapUser(order.client),
+    tienda: order.store ? mapStore(order.store) : null,
+    repartidor: mapUser(order.driver),
+    created_at: order.created_at,
+    updated_at: order.updated_at,
+  };
+}
 
 const orderService = {
-  /**
-   * Lista todas las tiendas activas.
-   * GET /stores
-   *
-   * @returns {Promise<Store[]>}
-   * @throws {AppError}
-   */
   async getStores() {
     const { data } = await client.get('/stores');
-    return data; // Store[]
+    return unwrapData(data).map(mapStore);
   },
 
-  /**
-   * Obtiene los productos de una tienda específica.
-   * GET /stores/:storeId/products
-   *
-   * @param {number|string} storeId
-   * @returns {Promise<Product[]>}
-   * @throws {AppError}
-   */
+  async getStore(storeId) {
+    const { data } = await client.get(`/stores/${storeId}`);
+    const store = unwrapData(data);
+
+    return {
+      ...mapStore(store),
+      products: Array.isArray(store.products)
+        ? store.products.map(mapProduct)
+        : [],
+    };
+  },
+
   async getStoreProducts(storeId) {
     const { data } = await client.get(`/stores/${storeId}/products`);
-    return data;
+    return unwrapData(data).map(mapProduct);
   },
 
-  /**
-   * Lista las zonas de entrega disponibles.
-   * GET /zones
-   *
-   * @returns {Promise<Zone[]>}
-   * @throws {AppError}
-   */
   async getZones() {
     const { data } = await client.get('/zones');
-    return data;
+    return unwrapData(data).map(mapZone);
   },
 
-  /**
-   * Crea un nuevo pedido.
-   * POST /orders
-   *
-   * El backend de Laravel retorna el pedido creado con el enlace_whatsapp
-   * generado y los campos de rastreo.
-   *
-   * @param {CreateOrderPayload} payload
-   * @returns {Promise<OrderResult>}
-   * @throws {AppError}
-   */
-  async createOrder(payload) {
-    const { data } = await client.post('/orders', payload);
-    return data;
+  async createOrder({ storeId, subtotal, lat, lng, referenceText }) {
+    const { data } = await client.post('/orders', {
+      store_id: storeId,
+      subtotal,
+      lat,
+      lng,
+      reference_text: referenceText,
+    });
+
+    return mapOrder(data);
   },
 
-  /**
-   * Obtiene el detalle y estado actual de un pedido.
-   * GET /orders/:orderId
-   *
-   * @param {number|string} orderId
-   * @returns {Promise<OrderResult>}
-   * @throws {AppError}
-   */
   async getOrder(orderId) {
     const { data } = await client.get(`/orders/${orderId}`);
-    return data;
+    return mapOrder(data);
   },
 
-  /**
-   * Lista el historial de pedidos del usuario autenticado.
-   * GET /orders
-   *
-   * @returns {Promise<OrderResult[]>}
-   * @throws {AppError}
-   */
   async getMyOrders() {
     const { data } = await client.get('/orders');
-    return data;
+    return unwrapData(data).map(mapOrder);
   },
 };
 

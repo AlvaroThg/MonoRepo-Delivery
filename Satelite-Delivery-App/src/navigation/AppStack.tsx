@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AppStackParamList } from './types';
@@ -35,6 +35,7 @@ function LogoutButton() {
   const { logout } = useAuth();
   return (
     <TouchableOpacity onPress={logout} style={{ marginRight: 4, padding: 6 }}>
+      <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Salir</Text>
     </TouchableOpacity>
   );
 }

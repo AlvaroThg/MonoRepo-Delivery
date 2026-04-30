@@ -10,22 +10,25 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCheckout } from '../hooks/useCheckout';
 import ZoneSelector from '../components/checkout/ZoneSelector';
 import CartSummary from '../components/checkout/CartSummary';
 import OrderConfirmation from '../components/checkout/OrderConfirmation';
+import type { AppStackParamList } from '../navigation/types';
 
-/**
- * Pantalla de Checkout — compone zona, referencia, carrito y confirmación.
- */
-export default function CheckoutScreen() {
+type Props = NativeStackScreenProps<AppStackParamList, 'Checkout'>;
+
+export default function CheckoutScreen({ navigation }: Props) {
   const {
+    store,
     zones,
     selectedZone,
     referenciaEntrega,
     setReferenciaEntrega,
     cartItems,
     isSubmitting,
+    isLoadingZones,
     errors,
     orderResult,
     subtotal,
@@ -41,6 +44,17 @@ export default function CheckoutScreen() {
     await submitOrder();
   };
 
+  if (!store && !orderResult) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.headerTitle}>Checkout</Text>
+        <Text style={styles.headerSubtitle}>
+          Tu carrito esta vacio. Regresa a una tienda para agregar productos.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -52,34 +66,38 @@ export default function CheckoutScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Checkout</Text>
           <Text style={styles.headerSubtitle}>
-            Confirma tu pedido y zona de entrega
+            {store ? `Pedido desde ${store.nombre}` : 'Confirma tu pedido'}
           </Text>
         </View>
 
-        {/* Selector de Zona */}
-        <ZoneSelector
-          zones={zones}
-          selectedZone={selectedZone}
-          onSelect={selectZone}
-          error={errors.zona}
-        />
+        {isLoadingZones ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator color="#3B82F6" size="small" />
+            <Text style={styles.loadingCardText}>Cargando zonas de entrega...</Text>
+          </View>
+        ) : (
+          <ZoneSelector
+            zones={zones}
+            selectedZone={selectedZone}
+            onSelect={selectZone}
+            error={errors.zona}
+          />
+        )}
 
-        {/* Referencia de Entrega */}
         <View style={styles.section}>
           <Text style={styles.label}>Referencia de Entrega</Text>
           <Text style={styles.hint}>
-            Describe cómo llegar a tu casa (ej: casa de reja verde frente a la cancha)
+            Describe como llegar a tu casa.
           </Text>
           <TextInput
             style={[
               styles.textArea,
               errors.referenciaEntrega && styles.textAreaError,
             ]}
-            placeholder="Ej: Casa de reja negra frente a la tienda de Doña Mary..."
+            placeholder="Ej: Casa de reja negra frente a la tienda de Dona Mary..."
             placeholderTextColor="#C4C9D4"
             value={referenciaEntrega}
             onChangeText={setReferenciaEntrega}
@@ -90,9 +108,9 @@ export default function CheckoutScreen() {
           {errors.referenciaEntrega && (
             <Text style={styles.error}>{errors.referenciaEntrega}</Text>
           )}
+          {errors.general && <Text style={styles.error}>{errors.general}</Text>}
         </View>
 
-        {/* Resumen del Carrito */}
         <CartSummary
           items={cartItems}
           subtotal={subtotal}
@@ -102,7 +120,6 @@ export default function CheckoutScreen() {
           error={errors.cart}
         />
 
-        {/* Botón Confirmar */}
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -119,11 +136,18 @@ export default function CheckoutScreen() {
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Modal de Confirmación */}
       <OrderConfirmation
         visible={!!orderResult}
         order={orderResult}
         onClose={resetOrder}
+        onTrack={() => {
+          if (!orderResult) {
+            return;
+          }
+
+          resetOrder();
+          navigation.replace('OrderTracking', { orderId: String(orderResult.id) });
+        }}
       />
     </KeyboardAvoidingView>
   );
@@ -133,6 +157,13 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
     backgroundColor: '#F8F9FB',
+  },
+  emptyState: {
+    flex: 1,
+    backgroundColor: '#F8F9FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -151,6 +182,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#6B7280',
     marginTop: 4,
+    textAlign: 'center',
   },
   section: {
     marginBottom: 20,
@@ -187,6 +219,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     fontWeight: '500',
+  },
+  loadingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingCardText: {
+    color: '#374151',
+    fontWeight: '600',
   },
   submitBtn: {
     backgroundColor: '#3B82F6',

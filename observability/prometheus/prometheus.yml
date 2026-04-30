@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: satelite-delivery-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - backend-nginx-service:80
+
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus-service:9090

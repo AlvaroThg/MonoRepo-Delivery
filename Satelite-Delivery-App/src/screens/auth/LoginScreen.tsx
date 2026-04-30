@@ -1,12 +1,3 @@
-/**
- * @file LoginScreen.tsx
- * Pantalla de inicio de sesión — AuthStack.
- *
- * Para conectar con tu API real:
- *   1. Cambia handleLogin para llamar a tu endpoint.
- *   2. Si la respuesta es exitosa, llama a auth.login(user).
- */
-
 import React, { useState } from 'react';
 import {
   View,
@@ -26,23 +17,24 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
-  const [phone, setPhone]     = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    if (!phone.trim() || !password.trim()) {
-      setError('Ingresa tu teléfono y contraseña.');
+    if (!email.trim() || !password.trim()) {
+      setError('Ingresa tu correo y contrasena.');
       return;
     }
+
     setLoading(true);
     setError(null);
+
     try {
-      await login({ phone, password });
-      // RootNavigator cambia automáticamente al AppStack
+      await login({ email: email.trim(), password });
     } catch (err: any) {
-      setError(err?.message ?? 'Error al iniciar sesión.');
+      setError(err?.message ?? 'Error al iniciar sesion.');
     } finally {
       setLoading(false);
     }
@@ -54,25 +46,27 @@ export default function LoginScreen({ navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.inner}>
-        {/* Logo / Branding */}
-        <Text style={styles.logo}>🛰</Text>
-        <Text style={styles.brand}>Satélite Delivery</Text>
-        <Text style={styles.tagline}>Tu pedido, con precisión orbital.</Text>
+        <Text style={styles.logo}>Sat</Text>
+        <Text style={styles.brand}>Satelite Delivery</Text>
+        <Text style={styles.tagline}>Tu pedido, con precision orbital.</Text>
+        <Text style={styles.demoHint}>
+          Demo: cliente@satelite.com / password123
+        </Text>
 
-        {/* Form */}
         <View style={styles.form}>
-          <Text style={styles.label}>Teléfono</Text>
+          <Text style={styles.label}>Correo electronico</Text>
           <TextInput
             style={styles.input}
-            placeholder="+58 412 000 0000"
+            placeholder="cliente@satelite.com"
             placeholderTextColor="#555B6E"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
             autoCapitalize="none"
+            autoCorrect={false}
           />
 
-          <Text style={styles.label}>Contraseña</Text>
+          <Text style={styles.label}>Contrasena</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
@@ -90,10 +84,11 @@ export default function LoginScreen({ navigation }: Props) {
             disabled={loading}
             activeOpacity={0.85}
           >
-            {loading
-              ? <ActivityIndicator color="#FFF" size="small" />
-              : <Text style={styles.btnText}>Iniciar Sesión</Text>
-            }
+            {loading ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Text style={styles.btnText}>Iniciar Sesion</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -102,7 +97,7 @@ export default function LoginScreen({ navigation }: Props) {
           >
             <Text style={styles.linkText}>
               ¿No tienes cuenta?{' '}
-              <Text style={styles.linkBold}>Regístrate</Text>
+              <Text style={styles.linkBold}>Registrate</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -122,9 +117,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   logo: {
-    fontSize: 56,
+    fontSize: 40,
     textAlign: 'center',
     marginBottom: 8,
+    color: '#93C5FD',
+    fontWeight: '900',
   },
   brand: {
     fontSize: 28,
@@ -137,8 +134,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 8,
     marginTop: 6,
+  },
+  demoHint: {
+    color: '#93C5FD',
+    textAlign: 'center',
+    marginBottom: 28,
+    fontSize: 13,
+    fontWeight: '600',
   },
   form: {
     backgroundColor: '#1C2030',

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Frontend Web Service
   frontend-service:
@@ -37,6 +35,13 @@ services:
       DB_USERNAME: postgres
       DB_PASSWORD: secret
       DB_SCHEMA: public
+      PROMETHEUS_ENABLED: "true"
+      PROMETHEUS_NAMESPACE: satelite_delivery
+      PROMETHEUS_ROUTE: metrics
+      PROMETHEUS_STORAGE_DRIVER: database
+      PROMETHEUS_DB_CONNECTION: pgsql
+      PROMETHEUS_STORAGE_PREFIX: prometheus_metrics
+      PROMETHEUS_SKIP_PATHS: metrics,up
     volumes:
       - ./Satelite-Delivery:/var/www/html
     networks:
@@ -76,8 +81,47 @@ services:
       - "5432:5432"
     restart: unless-stopped
 
+  prometheus-service:
+    image: prom/prometheus:latest
+    container_name: satelite-delivery-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - satelite-network
+    depends_on:
+      - backend-nginx-service
+    restart: unless-stopped
+
+  grafana-service:
+    image: grafana/grafana:latest
+    container_name: satelite-delivery-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - satelite-network
+    depends_on:
+      - prometheus-service
+    restart: unless-stopped
+
 volumes:
   postgres-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   satelite-network:

@@ -1,30 +1,63 @@
-import { useState, useMemo, useCallback } from 'react';
-import { MOCK_ZONES, MOCK_PRODUCTS, MOCK_ORDERS } from '../api/mockData';
-import type { Zone, CartItem, OrderItem, OrderResult, CheckoutErrors } from '../types/models';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import orderService from '../services/orderService';
+import { useCart } from '../context/CartContext';
+import { calculateDeliveryCost, euclideanDistance } from '../utils/delivery';
+import type { Zone, CartItem, OrderResult, CheckoutErrors } from '../types/models';
 
-// Re-exportamos para compatibilidad con componentes que ya importan desde aquí
-export type { Zone, CartItem, OrderItem, OrderResult, CheckoutErrors };
+export type { Zone, CartItem, OrderResult, CheckoutErrors };
 
-/**
- * Hook de lógica de negocio para la Pantalla de Checkout.
- * Encapsula selección de zona, carrito, validación y submit simulado.
- */
 export function useCheckout() {
-  // ── Estado ────────────────────────────────────────────────
+  const { store, items, subtotal, updateQuantity, clearCart, setLastOrderId } = useCart();
+  const [zones, setZones] = useState<Zone[]>([]);
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
-  const [referenciaEntrega, setReferenciaEntrega] = useState<string>('');
-  const [cartItems, setCartItems] = useState<CartItem[]>(
-    MOCK_PRODUCTS.map((p) => ({ ...p, cantidad: 1 }))
-  );
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [referenciaEntrega, setReferenciaEntrega] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingZones, setIsLoadingZones] = useState(true);
   const [errors, setErrors] = useState<CheckoutErrors>({});
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
 
-  // ── Cálculos derivados ────────────────────────────────────
-  const subtotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.precio * item.cantidad, 0),
-    [cartItems]
-  );
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        setIsLoadingZones(true);
+        setErrors((previous) => ({ ...previous, general: undefined }));
+
+        const apiZones = await orderService.getZones();
+
+        if (!active) {
+          return;
+        }
+
+        setZones(
+          apiZones.map((zone) => ({
+            ...zone,
+            costo_envio: store
+              ? calculateDeliveryCost(
+                  euclideanDistance(store.lat, store.lng, zone.lat, zone.lng)
+                )
+              : 0,
+          }))
+        );
+      } catch (err: any) {
+        if (active) {
+          setErrors((previous) => ({
+            ...previous,
+            general: err?.message ?? 'No se pudieron cargar las zonas de entrega.',
+          }));
+        }
+      } finally {
+        if (active) {
+          setIsLoadingZones(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [store]);
 
   const deliveryFee = useMemo(
     () => selectedZone?.costo_envio ?? 0,
@@ -33,88 +66,100 @@ export function useCheckout() {
 
   const total = useMemo(() => subtotal + deliveryFee, [subtotal, deliveryFee]);
 
-  // ── Acciones ──────────────────────────────────────────────
   const selectZone = useCallback((zone: Zone) => {
     setSelectedZone(zone);
-    setErrors((prev) => ({ ...prev, zona: undefined }));
-  }, []);
-
-  const updateQuantity = useCallback((productId: number, newQty: number) => {
-    if (newQty < 0) return;
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.id === productId ? { ...item, cantidad: newQty } : item
-      )
-    );
+    setErrors((previous) => ({
+      ...previous,
+      zona: undefined,
+      general: undefined,
+    }));
   }, []);
 
   const validate = useCallback((): boolean => {
-    const newErrors: CheckoutErrors = {};
+    const nextErrors: CheckoutErrors = {};
+
+    if (!store) {
+      nextErrors.general = 'Selecciona una tienda antes de confirmar el pedido.';
+    }
+
     if (!selectedZone) {
-      newErrors.zona = 'Debes seleccionar una zona de entrega.';
+      nextErrors.zona = 'Debes seleccionar una zona de entrega.';
     }
+
     if (!referenciaEntrega.trim()) {
-      newErrors.referenciaEntrega = 'La referencia de entrega es obligatoria.';
+      nextErrors.referenciaEntrega = 'La referencia de entrega es obligatoria.';
     }
-    const hasProducts = cartItems.some((item) => item.cantidad > 0);
+
+    const hasProducts = items.some((item) => item.cantidad > 0);
+
     if (!hasProducts) {
-      newErrors.cart = 'Agrega al menos un producto al carrito.';
+      nextErrors.cart = 'Agrega al menos un producto al carrito.';
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [selectedZone, referenciaEntrega, cartItems]);
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }, [store, selectedZone, referenciaEntrega, items]);
 
   const submitOrder = useCallback(async (): Promise<OrderResult | null> => {
-    if (!validate()) return null;
+    if (!validate()) {
+      return null;
+    }
 
     setIsSubmitting(true);
+
     try {
-      // Simula latencia de red
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const createdOrder = await orderService.createOrder({
+        storeId: store.id,
+        subtotal,
+        lat: selectedZone.lat,
+        lng: selectedZone.lng,
+        referenceText: referenciaEntrega.trim(),
+      });
 
-      // Simula la respuesta del backend usando MOCK_ORDERS
-      const mockResponse: OrderResult = {
-        ...MOCK_ORDERS[0],
-        zona_id: selectedZone!.id,
-        referencia_entrega: referenciaEntrega,
-        costo_envio: deliveryFee,
-        total_precio: total,
-        items: cartItems
-          .filter((item) => item.cantidad > 0)
-          .map((item) => ({
-            producto_id: item.id,
-            cantidad: item.cantidad,
-            precio_en_compra: item.precio,
-          })),
-      };
+      setOrderResult(createdOrder);
+      setLastOrderId(String(createdOrder.id));
+      clearCart();
+      setSelectedZone(null);
+      setReferenciaEntrega('');
 
-      setOrderResult(mockResponse);
-      return mockResponse;
+      return createdOrder;
+    } catch (err: any) {
+      setErrors((previous) => ({
+        ...previous,
+        general: err?.message ?? 'No se pudo registrar el pedido.',
+      }));
+      return null;
     } finally {
       setIsSubmitting(false);
     }
-  }, [validate, selectedZone, referenciaEntrega, deliveryFee, total, cartItems]);
+  }, [
+    validate,
+    store,
+    subtotal,
+    selectedZone,
+    referenciaEntrega,
+    setLastOrderId,
+    clearCart,
+  ]);
 
   const resetOrder = useCallback(() => {
     setOrderResult(null);
   }, []);
 
-  // ── API pública ───────────────────────────────────────────
   return {
-    // Estado
-    zones: MOCK_ZONES as Zone[],
+    store,
+    zones,
     selectedZone,
     referenciaEntrega,
     setReferenciaEntrega,
-    cartItems,
+    cartItems: items,
     isSubmitting,
+    isLoadingZones,
     errors,
     orderResult,
-    // Cálculos
     subtotal,
     deliveryFee,
     total,
-    // Acciones
     selectZone,
     updateQuantity,
     submitOrder,
